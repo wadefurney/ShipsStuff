@@ -3,6 +3,7 @@
 
 #crap
 *.secret
+*.data
 
 # User-specific files
 *.suo
