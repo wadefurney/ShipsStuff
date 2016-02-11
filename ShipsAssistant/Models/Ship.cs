@@ -26,7 +26,7 @@ namespace ShipsApi.Models
         public int PriceCredits { get; set; }
         public List<long> ModuleIDs { get; set; }
         public int PriceGold { get; set; }
-        public Dictionary<String, Decimal> ShipAttributes { get; set; }
+        public Dictionary<String, Dictionary<String, decimal>> ShipAttributes { get; set; }
 
         public Dictionary<long, int> NextShips { get; set; }
 
@@ -42,13 +42,13 @@ namespace ShipsApi.Models
                 
         public Ship()
         {
-            ShipAttributes = new Dictionary<string, decimal>(); 
+            ShipAttributes = new Dictionary<String, Dictionary<String, decimal>>(); 
         }
 
         public Ship(String id, JToken shipToken)
         {
-            ShipAttributes = new Dictionary<string, decimal>();
-                        
+            ShipAttributes = new Dictionary<String, Dictionary<String, decimal>>();
+
             IsPremium = bool.Parse(shipToken["is_premium"].ToString());
             ID = Convert.ToInt64(id);
             Name = shipToken["name"].ToString(); 
@@ -71,31 +71,12 @@ namespace ShipsApi.Models
                 }                
             }
 
-
-// not all attributes are in the same format, some interesting ones are in sub-objects
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            ShipAttributes = new Dictionary<string, decimal>();         
+            ShipAttributes = new Dictionary<String, Dictionary<String, decimal>>();
             foreach (JProperty category in shipToken["default_profile"])
-            {                
-                foreach(JProperty attr in shipToken["default_profile"][category.Name])
-                {
-                    decimal value;
-                    if(decimal.TryParse(attr.Value.ToString(), out value))
-                    {
-                        string name = attr.Name.ToString();
-                        ShipAttributes[name] = value;
-                    }
-                    else
-                    {
-                        string name = attr.Name.ToString();
-                        //string value = attr.Value.ToString(); 
-                        //Console.WriteLine(attr);
-                    }                    
-                }
+            {
+                Dictionary<string, decimal> attributes = GetCategoryAttributes(category);
+                ShipAttributes.Add(category.Name, attributes);
             }
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
 
             //following mainly used for determining ship progression
             ExperienceMax = 0;
@@ -126,9 +107,43 @@ namespace ShipsApi.Models
             Console.WriteLine();
         }
 
+
+        private Dictionary<string, decimal> GetCategoryAttributes(JProperty category, string namePrefix = "")
+        {
+            Dictionary<String, decimal> results = new Dictionary<string, decimal>();
+            foreach (JProperty attribute in category.Value)
+            {
+                string attrName = attribute.Name;
+                if (!String.IsNullOrEmpty(namePrefix))
+                {
+                    attrName = String.Format("{0}-{1}", namePrefix, attrName);
+                }
+                //has sub items
+                if (attribute.Value.Count() > 0)
+                {
+                    Dictionary<string, decimal> subAttirubtes = GetCategoryAttributes(attribute, attrName);
+                    foreach (string key in subAttirubtes.Keys)
+                    {
+                        results.Add(key, subAttirubtes[key]);
+                    }
+                }
+                else
+                {
+                    decimal value;
+                    if (!attribute.Name.Contains("_id") &&
+                        decimal.TryParse(attribute.Value.ToString(), out value))
+                    {
+                        results.Add(attrName, value);
+                    }
+                }
+            }
+            return results;
+        }
+
+
         public Ship(string id, JObject data)
         {
-            ShipAttributes = new Dictionary<string, decimal>();
+            ShipAttributes = new Dictionary<String,Dictionary<string, decimal>>();
 
             NextShipIDs = new List<long>();
 
